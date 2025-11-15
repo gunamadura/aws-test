@@ -1,22 +1,55 @@
-name: AWS Authentication Demo
+name: Manual Terraform Apply / Destroy
 
 on:
+  push:
+    branches:
+      - migration-poc01
   workflow_dispatch:
+    inputs:
+      terraform_action:
+        description: 'Terraform action to perform'
+        required: true
+        default: 'plan'
+        type: choice
+        options:
+        - apply
+        - destroy
+        - plan
 
 jobs:
-  auth-aws:
+  terraform:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v4
 
+      # ---- AWS Authentication ----
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ap-south-1    # Change to your region
+          aws-region: ap-south-1
 
-      - name: Verify Authentication
-        run: aws sts get-caller-identity
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan on Push
+        if: ${{ github.event_name == 'push' }}
+        run: terraform plan
+
+      - name: Terraform Plan on Demand
+        if: ${{ github.event.inputs.terraform_action == 'plan' }}
+        run: terraform plan
+
+      - name: Terraform Apply
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.terraform_action == 'apply' }}
+        run: terraform apply -auto-approve
+    
+      - name: Terraform Destroy
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.terraform_action == 'destroy' }}
+        run: terraform destroy -auto-approve
